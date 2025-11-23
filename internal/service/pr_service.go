@@ -166,6 +166,14 @@ func (s *PRService) ReassignReviewer(prID, oldReviewerID string) (*entities.Pull
     return updatedPR, newReviewerID, nil
 }
 
+func (s *PRService) GetStats() (*repository.Stats, error) {
+    stats, err := s.prRepo.GetStats()
+    if err != nil {
+        return nil, fmt.Errorf("failed to get stats: %w", err)
+    }
+    return stats, nil
+}
+
 // func (s *PRService) ReassignReviewer(prID, oldReviewerID string) (*entities.PullRequest, string, error) {
 
 //     pr, err := s.prRepo.GetPR(prID)

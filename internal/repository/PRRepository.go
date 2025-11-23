@@ -220,3 +220,65 @@ func (r *prRepository) IsPRMerged(prID string) (bool, error) {
 
 	return status == "MERGED", nil
 }
+
+// GetStats возвращает статистику назначений
+func (r *prRepository) GetStats() (*Stats, error) {
+    stats := &Stats{}
+
+    // Статистика по пользователям (кто сколько PR отревьюил)
+    rows, err := r.db.DB.Query(`
+        SELECT reviewer_id, COUNT(*) as review_count 
+        FROM pr_reviewers 
+        GROUP BY reviewer_id 
+        ORDER BY review_count DESC
+    `)
+    if err != nil {
+        return nil, fmt.Errorf("failed to get user stats: %w", err)
+    }
+    defer rows.Close()
+
+    for rows.Next() {
+        var userStat UserStat
+        err := rows.Scan(&userStat.UserID, &userStat.ReviewCount)
+        if err != nil {
+            return nil, fmt.Errorf("failed to scan user stat: %w", err)
+        }
+        stats.UserStats = append(stats.UserStats, userStat)
+    }
+
+    // Статистика по PR (сколько ревьюеров у каждого PR)
+    rows, err = r.db.DB.Query(`
+        SELECT pr_id, COUNT(*) as reviewer_count 
+        FROM pr_reviewers 
+        GROUP BY pr_id 
+        ORDER BY reviewer_count DESC
+    `)
+    if err != nil {
+        return nil, fmt.Errorf("failed to get PR stats: %w", err)
+    }
+    defer rows.Close()
+
+    for rows.Next() {
+        var prStat PRStat
+        err := rows.Scan(&prStat.PRID, &prStat.ReviewerCount)
+        if err != nil {
+            return nil, fmt.Errorf("failed to scan PR stat: %w", err)
+        }
+        stats.PRStats = append(stats.PRStats, prStat)
+    }
+
+    // Общая статистика
+    err = r.db.DB.QueryRow(`
+        SELECT 
+            COUNT(DISTINCT pr_id) as total_prs,
+            COUNT(*) as total_review_assignments,
+            COUNT(DISTINCT reviewer_id) as unique_reviewers
+        FROM pr_reviewers
+    `).Scan(&stats.TotalPRs, &stats.TotalReviewAssignments, &stats.UniqueReviewers)
+    
+    if err != nil {
+        return nil, fmt.Errorf("failed to get overall stats: %w", err)
+    }
+
+    return stats, nil
+}
